@@ -13,17 +13,19 @@ import java.util.Map;
 import java.util.List;
 
 public class CurrencyAppGUI extends JFrame {
+
     private JComboBox<String> currencySelector;
     private JButton fetchButton;
     private JPanel resultPanel;
 
     private final Map<String, CurrencyDialog> dialogs = new HashMap<>() {{
-        put("USD", new UsdDialog()); //вставили в мап по ключу (Usd ) объект
+        put("USD", new UsdDialog());
         put("EUR", new EurDialog());
         put("RUB", new RubDialog());
     }};
 
     public CurrencyAppGUI() {
+
         setTitle("Курс валют → MDL");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(400, 200);
@@ -41,37 +43,65 @@ public class CurrencyAppGUI extends JFrame {
         add(topPanel, BorderLayout.NORTH);
         add(resultPanel, BorderLayout.CENTER);
 
-        fetchButton.addActionListener(e -> updateRate()); //когда нажимаем на кнопку покахать курс
+        fetchButton.addActionListener(e -> updateRate());
     }
 
     private void updateRate() {
-        String selectedCurrency = (String) currencySelector.getSelectedItem();// 1 берем конкретный курс который выбрали в приложении,записали в селектед карренси
 
-        CurrencyRequest req = new CurrencyRequestBuilder()  // 2 создаем запрос
+        String selectedCurrency = (String) currencySelector.getSelectedItem();
+
+        // Builder создаём один раз
+        CurrencyRequest req = new CurrencyRequestBuilder()
                 .setBaseCurrencies(List.of(selectedCurrency))
                 .setTarget("MDL")
                 .build();
 
-        CurrencyRequestPrototype prototype = new CurrencyRequestPrototype(req); // создается объект prototype и передаем тут наш объект
+        // получаем курс к MDL
+        Map<String, Double> mdlRates = CurrencyService.getInstance().getRates(req);
 
-        CurrencyRequest copy = prototype.copy();
+        double mdlRate = mdlRates.getOrDefault(selectedCurrency, 0.0);
 
+        double eurRate = 0;
 
-        double rate = CurrencyService.getInstance()
-                .getRates(copy)
-                .getOrDefault(selectedCurrency, 0.0);// 3  наш запрос передали сюда, в сервисе делается запрос на сайт по нашим требованиям и приходит ответ с нашим курсом
+        if (selectedCurrency.equals("USD")) {
 
-        CurrencyDialog dialog = dialogs.get(selectedCurrency); // возвращаем объект USD dialog
-        RateDisplay display = dialog.createDisplay(); // create display с обьектом usd display
-        display.setRate(rate); // записываем значение курса
+            // Prototype — копируем существующий запрос
+            CurrencyRequestPrototype prototype = new CurrencyRequestPrototype(req);
+
+            CurrencyRequest copy = prototype.copy();
+
+            // меняем только параметры
+            copy.setBaseCurrencies(List.of("EUR"));
+            copy.setTarget("USD");
+
+            Map<String, Double> eurRates =
+                    CurrencyService.getInstance().getRates(copy);
+
+            eurRate = eurRates.getOrDefault("EUR", 0.0);
+        }
+
+        CurrencyDialog dialog = dialogs.get(selectedCurrency);
+        RateDisplay display = dialog.createDisplay();
+
+        display.setRate(mdlRate);
 
         resultPanel.removeAll();
         resultPanel.add(display.render());
+
+        if (selectedCurrency.equals("USD")) {
+
+            JLabel eurLabel =
+                    new JLabel("1 EUR = " + eurRate + " USD");
+
+            resultPanel.add(eurLabel);
+        }
+
         resultPanel.revalidate();
         resultPanel.repaint();
     }
 
     public static void main(String[] args) {
+
         SwingUtilities.invokeLater(() -> {
             CurrencyAppGUI app = new CurrencyAppGUI();
             app.setVisible(true);
